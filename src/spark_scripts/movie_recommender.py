@@ -6,13 +6,27 @@ from src.utils.utils import get_project_root
 
 ROOT_DIR = get_project_root()
 
+scoreThreshold: float = 0.0
+coOccurrenceThreshold: int = 0
+movieID: int = 0
 
-def compute_cosine_similarity(data):
+if len(sys.argv) > 1:
+    scoreThreshold = 0.97
+    coOccurrenceThreshold = 50
+
+    movieID = int(sys.argv[1])
+else:
+    sys.exit(-1)
+
+
+def compute_cosine_similarity(data, target_movie_id):
     # Compute xx, xy and yy columns
     pair_scores = data \
         .withColumn("xx", func.col("rating1") * func.col("rating1")) \
         .withColumn("yy", func.col("rating2") * func.col("rating2")) \
-        .withColumn("xy", func.col("rating1") * func.col("rating2"))
+        .withColumn("xy", func.col("rating1") * func.col("rating2")) \
+        .filter(((func.col("movie1") != target_movie_id) & (func.col("rating1") >= 4)) | (
+            (func.col("movie2") != target_movie_id) & (func.col("rating2") >= 4)))
 
     # Compute numerator, denominator and numPairs columns
     calculate_similarity = pair_scores \
@@ -80,14 +94,9 @@ moviePairs = ratings.alias("ratings1") \
             func.col("ratings1.rating").alias("rating1"),
             func.col("ratings2.rating").alias("rating2"))
 
-moviePairSimilarities = compute_cosine_similarity(moviePairs).cache()
+moviePairSimilarities = compute_cosine_similarity(moviePairs, movieID).cache()
 
-if len(sys.argv) > 1:
-    scoreThreshold = 0.97
-    coOccurrenceThreshold = 50.0
-
-    movieID = int(sys.argv[1])
-
+if __name__ == '__main__':
     # Filter for movies with this sim that are "good" as defined by
     # our quality thresholds above
     filteredResults = moviePairSimilarities.filter(
